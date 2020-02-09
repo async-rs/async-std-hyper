@@ -1,0 +1,10 @@
+[package]
+name = "async-std-hyper"
+version = "0.1.0"
+authors = ["Stjepan Glavina <stjepang@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+async-std = "1"
+hyper = { version = "0.13", default-features = false }
+tokio = { version = "0.2", default-features = false }
