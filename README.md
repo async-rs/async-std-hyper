@@ -18,7 +18,7 @@ hyper = { version = "0.13", default-features = false }
 tokio = { version = "0.2", default-features = false }
 ```
 
-#### Step 1: Compatibility layer
+#### Step 2: Compatibility layer
 
 Copy this `compat` module into your crate:
 
