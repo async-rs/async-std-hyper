@@ -54,7 +54,7 @@ pub mod compat {
         type Error = io::Error;
 
         fn poll_accept(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
             let stream = task::ready!(Pin::new(&mut self.0.incoming()).poll_next(cx)).unwrap()?;
@@ -68,9 +68,12 @@ pub mod compat {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context,
-            buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
-            Pin::new(&mut self.0).poll_read(cx, buf)
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            let bytes =
+                task::ready!(Pin::new(&mut self.0).poll_read(cx, buf.initialize_unfilled())?);
+            buf.advance(bytes);
+            Poll::Ready(Ok(()))
         }
     }
 
