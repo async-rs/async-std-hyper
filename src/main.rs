@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind(addr).await?;
 
         let make_svc = make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(hello)) });
-        let server = Server::builder(compat::HyperListener(listener))
+        let server = Server::builder(compat::HyperListener::new(&listener))
             .executor(compat::HyperExecutor)
             .serve(make_svc);
 
@@ -30,7 +30,7 @@ pub mod compat {
     use std::task::{Context, Poll};
 
     use async_std::io;
-    use async_std::net::{TcpListener, TcpStream};
+    use async_std::net::{self, TcpListener, TcpStream};
     use async_std::prelude::*;
     use async_std::task;
 
@@ -47,9 +47,19 @@ pub mod compat {
         }
     }
 
-    pub struct HyperListener(pub TcpListener);
+    pub struct HyperListener<'listener> {
+        incoming: net::Incoming<'listener>,
+    }
 
-    impl hyper::server::accept::Accept for HyperListener {
+    impl<'listener> HyperListener<'listener> {
+        pub fn new(listener: &'listener TcpListener) -> Self {
+            Self {
+                incoming: listener.incoming(),
+            }
+        }
+    }
+
+    impl hyper::server::accept::Accept for HyperListener<'_> {
         type Conn = HyperStream;
         type Error = io::Error;
 
@@ -57,7 +67,7 @@ pub mod compat {
             mut self: Pin<&mut Self>,
             cx: &mut Context,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-            let stream = task::ready!(Pin::new(&mut self.0.incoming()).poll_next(cx)).unwrap()?;
+            let stream = task::ready!(Pin::new(&mut self.incoming).poll_next(cx)).unwrap()?;
             Poll::Ready(Some(Ok(HyperStream(stream))))
         }
     }
@@ -68,9 +78,12 @@ pub mod compat {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context,
-            buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
-            Pin::new(&mut self.0).poll_read(cx, buf)
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            let bytes =
+                task::ready!(Pin::new(&mut self.0).poll_read(cx, buf.initialize_unfilled())?);
+            buf.advance(bytes);
+            Poll::Ready(Ok(()))
         }
     }
 
